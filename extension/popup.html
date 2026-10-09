@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width: 260px; padding: 15px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; background: #fafafa; }
+    h3 { color: #138808; margin-top: 0; margin-bottom: 5px; }
+    p { font-size: 11px; color: #666; margin-bottom: 12px; }
+    button { width: 100%; padding: 10px; background-color: #FF9933; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+    button:hover { background-color: #e68a00; }
+    .status { margin-top: 10px; font-size: 12px; color: #28a745; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h3>🇮🇳 BharatForm Copilot</h3>
+  <p>Dynamic Multi-Field Auto-Fill Engine</p>
+  <button id="autofillBtn">⚡ Auto-Fill Active Form</button>
+  <div class="status" id="statusMsg"></div>
+
+  <script>
+    document.getElementById('autofillBtn').addEventListener('click', async () => {
+      const status = document.getElementById('statusMsg');
+      status.innerText = "Fetching Profile...";
+
+      try {
+        const response = await fetch('http://127.0.0.1:8000/api/v1/get-latest-profile');
+        const resData = await response.json();
+
+        if (!resData.success) {
+          status.innerText = "❌ No profile found in DB!";
+          return;
+        }
+
+        const profile = resData.profile;
+        const personal = profile.personal_details || {};
+        
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (data) => {
+            const fillField = (selectors, value) => {
+              if (!value) return;
+              selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(input => {
+                  input.value = value;
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+              });
+            };
+
+            // Dynamic Regex Field Injection
+            fillField(['input[name*="name" i]', 'input[id*="name" i]', 'input[placeholder*="name" i]'], data.name);
+            fillField(['input[name*="dob" i]', 'input[id*="dob" i]', 'input[placeholder*="birth" i]'], data.date_of_birth);
+            fillField(['input[name*="gender" i]', 'select[name*="gender" i]'], data.gender);
+
+          },
+          args: [personal]
+        });
+
+        status.innerText = "✅ Smart Form Auto-Filled!";
+      } catch (err) {
+        status.innerText = "❌ Backend Server Offline!";
+      }
+    });
+  </script>
+</body>
+</html>
