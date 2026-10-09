@@ -89,7 +89,7 @@ async def process_document(file: UploadFile = File(...)):
             "Return ONLY a clean JSON object containing these extracted key-value pairs without any markdown formatting."
         )
 
-        # 5. Call Groq Llama Vision model with explicit error capturing
+        # 5. Call active Groq Vision model
         try:
             chat_completion = client.chat.completions.create(
                 messages=[
@@ -106,7 +106,7 @@ async def process_document(file: UploadFile = File(...)):
                         ],
                     }
                 ],
-                model="llama-3.2-11b-vision-preview",
+                model="llama-3.2-11b-vision-instruct",
                 temperature=0.2,
             )
             response_text = chat_completion.choices[0].message.content.strip()
