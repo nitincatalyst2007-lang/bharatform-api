@@ -45,12 +45,6 @@ def init_db():
 
 init_db()
 
-def get_groq_client():
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY environment variable missing on server.")
-    return Groq(api_key=api_key)
-
 @app.get("/")
 def read_root():
     return {
@@ -61,12 +55,23 @@ def read_root():
 
 @app.post("/process-document")
 async def process_document(file: UploadFile = File(...)):
-    # Validate Image File
+    # 1. Verify Groq API Key
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key or "your_groq_api_key" in api_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="GROQ_API_KEY environment variable is invalid or missing on Render server."
+        )
+
+    # 2. Validate Uploaded File Type
     if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Uploaded file must be an image (JPG/PNG).")
+        raise HTTPException(
+            status_code=400, 
+            detail="Uploaded file must be an image format (JPG/PNG)."
+        )
 
     try:
-        # Read image content
+        # 3. Read and Process Image
         contents = await file.read()
         image = Image.open(BytesIO(contents)).convert("RGB")
         
@@ -75,36 +80,41 @@ async def process_document(file: UploadFile = File(...)):
         image.save(buffered, format="JPEG")
         base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-        client = get_groq_client()
+        # 4. Initialize Groq Client
+        client = Groq(api_key=api_key)
 
-        # Prompt for document details extraction
         prompt = (
             "Extract all form-filling details from this document image (such as Name, Father's Name, Mother's Name, "
             "Date of Birth, Gender, Aadhaar/ID Number, Roll Number, Marks, Address, Category, etc.). "
             "Return ONLY a clean JSON object containing these extracted key-value pairs without any markdown formatting."
         )
 
-        # Call Groq Llama Vision model
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+        # 5. Call Groq Llama Vision model with explicit error capturing
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                },
                             },
-                        },
-                    ],
-                }
-            ],
-            model="llama-3.2-11b-vision-preview",
-            temperature=0.2,
-        )
-
-        response_text = chat_completion.choices[0].message.content.strip()
+                        ],
+                    }
+                ],
+                model="llama-3.2-11b-vision-preview",
+                temperature=0.2,
+            )
+            response_text = chat_completion.choices[0].message.content.strip()
+        except Exception as groq_err:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Groq Cloud API Error: {str(groq_err)}"
+            )
 
         # Clean JSON formatting wrappers if present
         if response_text.startswith("```json"):
@@ -121,7 +131,7 @@ async def process_document(file: UploadFile = File(...)):
         except Exception:
             extracted_json = {"raw_text": response_text}
 
-        # Save result to SQLite
+        # 6. Save result to SQLite
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute(
@@ -137,5 +147,10 @@ async def process_document(file: UploadFile = File(...)):
             "data": extracted_json
         }
 
+    except HTTPException as http_ex:
+        raise http_ex
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OCR Processing Failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"OCR Processing Internal Error: {str(e)}"
+        )
