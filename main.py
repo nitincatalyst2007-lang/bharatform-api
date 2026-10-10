@@ -89,31 +89,49 @@ async def process_document(file: UploadFile = File(...)):
             "Return ONLY a clean JSON object containing these extracted key-value pairs without any markdown formatting."
         )
 
-        # 5. Call active Groq 90B Vision model
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
+        # Active Groq vision models list to try sequentially
+        vision_models = [
+            "llama-3.2-11b-vision-instruct",
+            "llama-3.2-90b-vision-instruct",
+            "llama-3.2-11b-vision",
+            "llama-3.2-90b-vision"
+        ]
+
+        response_text = None
+        last_error = None
+
+        # 5. Try available vision models dynamically
+        for model_name in vision_models:
+            try:
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    },
                                 },
-                            },
-                        ],
-                    }
-                ],
-                model="llama-3.2-90b-vision-preview",
-                temperature=0.2,
-            )
-            response_text = chat_completion.choices[0].message.content.strip()
-        except Exception as groq_err:
+                            ],
+                        }
+                    ],
+                    model=model_name,
+                    temperature=0.2,
+                )
+                response_text = chat_completion.choices[0].message.content.strip()
+                if response_text:
+                    break
+            except Exception as e:
+                last_error = str(e)
+                continue
+
+        if not response_text:
             raise HTTPException(
                 status_code=500,
-                detail=f"Groq Cloud API Error: {str(groq_err)}"
+                detail=f"Groq Cloud API Vision Models Failed. Last Error: {last_error}"
             )
 
         # Clean JSON formatting wrappers if present
