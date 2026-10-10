@@ -7,7 +7,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from PIL import Image
-from groq import Groq
+import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
@@ -55,12 +55,12 @@ def read_root():
 
 @app.post("/process-document")
 async def process_document(file: UploadFile = File(...)):
-    # 1. Verify Groq API Key
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or "your_groq_api_key" in api_key:
+    # 1. Verify Gemini API Key (We can use GEMINI_API_KEY or fallback to checking GROQ/GEMINI)
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GROQ_API_KEY")
+    if not api_key:
         raise HTTPException(
             status_code=500, 
-            detail="GROQ_API_KEY environment variable is invalid or missing on Render server."
+            detail="API Key environment variable is missing on Render server."
         )
 
     # 2. Validate Uploaded File Type
@@ -74,14 +74,10 @@ async def process_document(file: UploadFile = File(...)):
         # 3. Read and Process Image
         contents = await file.read()
         image = Image.open(BytesIO(contents)).convert("RGB")
-        
-        # Convert image to Base64 for Groq Vision API
-        buffered = BytesIO()
-        image.save(buffered, format="JPEG")
-        base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-        # 4. Initialize Groq Client
-        client = Groq(api_key=api_key)
+        # 4. Configure Gemini Client
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
 
         prompt = (
             "Extract all form-filling details from this document image (such as Name, Father's Name, Mother's Name, "
@@ -89,49 +85,14 @@ async def process_document(file: UploadFile = File(...)):
             "Return ONLY a clean JSON object containing these extracted key-value pairs without any markdown formatting."
         )
 
-        # Active Groq vision models list to try sequentially
-        vision_models = [
-            "llama-3.2-11b-vision-instruct",
-            "llama-3.2-90b-vision-instruct",
-            "llama-3.2-11b-vision",
-            "llama-3.2-90b-vision"
-        ]
-
-        response_text = None
-        last_error = None
-
-        # 5. Try available vision models dynamically
-        for model_name in vision_models:
-            try:
-                chat_completion = client.chat.completions.create(
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
-                                    },
-                                },
-                            ],
-                        }
-                    ],
-                    model=model_name,
-                    temperature=0.2,
-                )
-                response_text = chat_completion.choices[0].message.content.strip()
-                if response_text:
-                    break
-            except Exception as e:
-                last_error = str(e)
-                continue
-
-        if not response_text:
+        # 5. Call Gemini Vision Model
+        try:
+            response = model.generate_content([prompt, image])
+            response_text = response.text.strip()
+        except Exception as gemini_err:
             raise HTTPException(
                 status_code=500,
-                detail=f"Groq Cloud API Vision Models Failed. Last Error: {last_error}"
+                detail=f"Gemini API Error: {str(gemini_err)}"
             )
 
         # Clean JSON formatting wrappers if present

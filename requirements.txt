@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-groq
-pillow
-python-multipart
 python-dotenv
+pillow
+google-generativeai
