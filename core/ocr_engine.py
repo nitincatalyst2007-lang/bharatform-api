@@ -3,7 +3,7 @@ import google.generativeai as genai
 from PIL import Image
 from dotenv import load_dotenv
 
-# Load environment variables if .env exists locally
+# Load local environment variables if present
 load_dotenv()
 
 # Fetch API key securely from environment variables (works for both local and Render)
@@ -17,15 +17,15 @@ genai.configure(api_key=api_key)
 
 def extract_text_from_image(image_path: str) -> str:
     """
-    Processes the given image using Google Gemini API (gemini-1.5-flash) 
+    Processes the given image using Google Gemini API (gemini-2.5-flash) 
     to extract and structure all text details for form filling.
     """
     try:
         # Open image using Pillow
         img = Image.open(image_path)
         
-        # Initialize the stable Gemini 1.5 Flash model
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Initialize the updated and stable Gemini Flash model
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # Prompt instructing Gemini to act as an OCR and parser for Indian academic/ID documents
         prompt = (
