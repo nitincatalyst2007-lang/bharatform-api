@@ -1,8 +1,7 @@
 import os
-import requests
-import base64
 from PIL import Image
 from dotenv import load_dotenv
+from google import genai
 
 load_dotenv()
 
@@ -11,45 +10,22 @@ api_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
 if not api_key:
     raise ValueError("API Key environment variable is missing on server.")
 
+client = genai.Client(api_key=api_key)
+
 def extract_text_from_image(image_path: str) -> str:
     try:
-        # Read image and convert to base64 for direct REST API call
-        with open(image_path, "rb") as image_file:
-            image_bytes = image_file.read()
-        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-
-        # Determine mime type
-        mime_type = "image/jpeg"
-        if image_path.lower().endswith(".png"):
-            mime_type = "image/png"
-
-        # Direct REST endpoint for Gemini 1.5 Flash (bypassing SDK version mismatch)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        img = Image.open(image_path)
         
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{
-                "parts": [
-                    {"text": "You are an expert OCR and document parser. Extract all relevant details (Name, Father's Name, DOB, Roll Number, Marks, ID Numbers, Address, etc.) from this document image and return them in clean structured text."},
-                    {
-                        "inline_data": {
-                            "mime_type": mime_type,
-                            "data": image_base64
-                        }
-                    }
-                ]
-            }]
-        }
-
-        response = requests.post(url, json=payload, headers=headers)
-        result = response.json()
-
-        if "error" in result:
-            raise RuntimeError(result["error"].get("message", "Unknown API Error"))
-
-        # Extract text from response candidates
-        text_output = result["candidates"][0]["content"]["parts"][0]["text"]
-        return text_output
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                img,
+                "You are an expert OCR and document parser. Extract all relevant details (such as Name, Father's Name, Date of Birth, Roll Number, Marks/Grades, ID Numbers, Address, etc.) from this document image and return them in a clean, structured JSON or text format."
+            ]
+        )
+        
+        return response.text
 
     except Exception as e:
+        except Exception as e:
         raise RuntimeError(f"Gemini API Error: {str(e)}")
