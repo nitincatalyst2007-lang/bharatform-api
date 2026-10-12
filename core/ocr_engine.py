@@ -16,8 +16,8 @@ def extract_text_from_image(image_path: str) -> str:
     try:
         img = Image.open(image_path)
         
-        # Using the standard current Gemini model identifier
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # Using gemini-1.5-pro which is universally supported across all v1beta endpoints
+        model = genai.GenerativeModel('gemini-1.5-pro')
         
         prompt = (
             "You are an expert OCR and document parser. "
