@@ -1,65 +1,44 @@
 import os
-import base64
-import json
-import re
-from groq import Groq
+import google.generativeai as genai
+from PIL import Image
 from dotenv import load_dotenv
 
+# Load environment variables if .env exists locally
 load_dotenv()
 
-def extract_document_details(file_path: str):
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        return {"error": "GROQ_API_KEY is not set in .env file."}
+# Fetch API key securely from environment variables (works for both local and Render)
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
 
-    client = Groq(api_key=api_key)
+if not api_key:
+    raise ValueError("API Key environment variable is missing on server.")
 
-    try:
-        with open(file_path, "rb") as image_file:
-            encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
-    except Exception as e:
-        return {"error": f"Error reading image file: {str(e)}"}
+# Configure the Gemini API client
+genai.configure(api_key=api_key)
 
-    mime_type = "image/jpeg"
-    if file_path.lower().endswith(".png"):
-        mime_type = "image/png"
-    elif file_path.lower().endswith(".webp"):
-        mime_type = "image/webp"
-
-    data_url = f"data:{mime_type};base64,{encoded_image}"
-
-    prompt = """
-    You are an expert Indian Document Parsing AI. 
-    1. Identify the type of document (e.g., "Aadhaar Card", "PAN Card", "10th Marksheet", "12th Marksheet", "Graduation Marksheet", "Passport Photo", "Signature", "Other Certificate").
-    2. Extract all relevant structured fields into a clean JSON object.
-    
-    Format requirements:
-    - Return ONLY valid JSON wrapped in ```json ```.
-    - Do not add conversational text.
+def extract_text_from_image(image_path: str) -> str:
     """
-
+    Processes the given image using Google Gemini API (gemini-1.5-flash) 
+    to extract and structure all text details for form filling.
+    """
     try:
-        completion = client.chat.completions.create(
-            model="qwen/qwen3.8-27b",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": data_url}}
-                    ]
-                }
-            ],
-            temperature=0.1,
-            max_tokens=1500
+        # Open image using Pillow
+        img = Image.open(image_path)
+        
+        # Initialize the stable Gemini 1.5 Flash model
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Prompt instructing Gemini to act as an OCR and parser for Indian academic/ID documents
+        prompt = (
+            "You are an expert OCR and document parser. "
+            "Extract all relevant details (such as Name, Father's Name, Date of Birth, "
+            "Roll Number, Marks/Grades, ID Numbers, Address, etc.) from this document image "
+            "and return them in a clean, structured JSON or text format."
         )
         
-        raw_content = completion.choices[0].message.content
+        # Generate content from the model
+        response = model.generate_content([prompt, img])
         
-        # Clean JSON String
-        cleaned = re.sub(r'```json\s*|\s*```', '', raw_content).strip()
-        parsed_json = json.loads(cleaned)
-        return parsed_json
+        return response.text
 
     except Exception as e:
-        return {"error": f"Groq Vision OCR Error: {str(e)}"}
+        raise RuntimeError(f"Gemini API Error: {str(e)}")
