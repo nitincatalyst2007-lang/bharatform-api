@@ -17,15 +17,15 @@ genai.configure(api_key=api_key)
 
 def extract_text_from_image(image_path: str) -> str:
     """
-    Processes the given image using Google Gemini API (gemini-2.5-flash) 
+    Processes the given image using Google Gemini API (gemini-flash-latest) 
     to extract and structure all text details for form filling.
     """
     try:
         # Open image using Pillow
         img = Image.open(image_path)
         
-        # Initialize the updated and stable Gemini Flash model
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # Initialize the universal latest flash model
+        model = genai.GenerativeModel('gemini-flash-latest')
         
         # Prompt instructing Gemini to act as an OCR and parser for Indian academic/ID documents
         prompt = (
