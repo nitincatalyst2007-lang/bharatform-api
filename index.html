@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BharatForm - Document OCR Parser</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
+      background-color: #f3f4f6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+    }
+    h2 {
+      color: #1d4ed8;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .badge {
+      display: inline-block;
+      background-color: #dcfce7;
+      color: #15803d;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .upload-area {
+      border: 2px dashed #3b82f6;
+      border-radius: 12px;
+      padding: 30px;
+      cursor: pointer;
+      background: #eff6ff;
+      transition: background 0.3s ease;
+      margin-bottom: 20px;
+    }
+    .upload-area:hover {
+      background: #dbeafe;
+    }
+    .file-input {
+      display: none;
+    }
+    .btn-process {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background-color 0.2s ease;
+    }
+    .btn-process:hover {
+      background-color: #1d4ed8;
+    }
+    .btn-process:disabled {
+      background-color: #93c5fd;
+      cursor: not-allowed;
+    }
+    #statusMsg {
+      margin-top: 15px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    #resultBox {
+      margin-top: 20px;
+      text-align: left;
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 250px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>BharatForm Copilot</h2>
+    <p class="subtitle">Upload academic or ID documents to extract details via Render Cloud Server</p>
+    <div class="badge">Cloud Backend Active: Render</div>
+
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+      <div id="fileLabel" style="margin-top: 10px; color: #374151; font-weight: 500;">
+        Click to select Document Image (JPG/PNG)
+      </div>
+      <input type="file" id="fileInput" class="file-input" accept="image/*" onchange="handleFileSelect(this)">
+    </div>
+
+    <button id="uploadBtn" class="btn-process" onclick="uploadAndProcess()">Process Document</button>
+
+    <div id="statusMsg"></div>
+    <pre id="resultBox"></pre>
+  </div>
+
+  <script>
+    const API_BASE_URL = "https://bharatform-api.onrender.com";
+
+    function handleFileSelect(input) {
+      const label = document.getElementById("fileLabel");
+      if (input.files && input.files[0]) {
+        label.innerText = "Selected File: " + input.files[0].name;
+      }
+    }
+
+    async function uploadAndProcess() {
+      const fileInput = document.getElementById("fileInput");
+      const statusMsg = document.getElementById("statusMsg");
+      const resultBox = document.getElementById("resultBox");
+      const uploadBtn = document.getElementById("uploadBtn");
+
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Please select an image file first.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      try {
+        uploadBtn.disabled = true;
+        statusMsg.style.color = "#2563eb";
+        statusMsg.innerText = "Processing document via Render Cloud...";
+        resultBox.style.display = "none";
+
+        const response = await fetch(`${API_BASE_URL}/process-document`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          // Backend se aayi detailed error string extract karein
+          const errDetail = data.detail || JSON.stringify(data);
+          throw new Error(`Server Error (${response.status}): ${errDetail}`);
+        }
+
+        statusMsg.style.color = "#16a34a";
+        statusMsg.innerText = "Document processed successfully!";
+        resultBox.innerText = JSON.stringify(data, null, 2);
+        resultBox.style.display = "block";
+
+      } catch (error) {
+        console.error("Error processing document:", error);
+        statusMsg.style.color = "#dc2626";
+        statusMsg.innerText = "Error processing document.";
+        resultBox.innerText = error.message;
+        resultBox.style.display = "block";
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    }
+  </script>
+
+</body>
+</html>

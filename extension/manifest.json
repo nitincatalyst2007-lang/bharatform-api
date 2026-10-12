@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "BharatForm Auto-Fill Copilot",
+  "version": "1.0",
+  "description": "Auto-fill Indian government forms instantly using your Master Profile.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1:8000/*"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
