@@ -16,8 +16,8 @@ def extract_text_from_image(image_path: str) -> str:
     try:
         img = Image.open(image_path)
         
-        # Use the standard stable gemini-pro model for text/multimodal fallback if flash throws 404
-        model = genai.GenerativeModel('gemini-pro-vision')
+        # Using the standard current Gemini model identifier
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = (
             "You are an expert OCR and document parser. "
@@ -30,10 +30,4 @@ def extract_text_from_image(image_path: str) -> str:
         return response.text
 
     except Exception as e:
-        # Fallback to standard gemini-1.5-pro if vision model fails
-        try:
-            model_fallback = genai.GenerativeModel('gemini-1.5-pro')
-            response = model_fallback.generate_content([prompt, img])
-            return response.text
-        except Exception as err:
-            raise RuntimeError(f"Gemini API Error: {str(err)}")
+        raise RuntimeError(f"Gemini API Error: {str(e)}")
